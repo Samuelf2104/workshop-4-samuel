@@ -1,22 +1,51 @@
 import bodyParser from "body-parser";
 import express from "express";
-import { BASE_ONION_ROUTER_PORT } from "../config";
+import {exportPrvKey, exportPubKey, generateRsaKeyPair, importPrvKey, rsaDecrypt, symDecrypt} from "../crypto";
+import {BASE_ONION_ROUTER_PORT, REGISTRY_PORT} from "../config";
 
-export async function simpleOnionRouter(nodeId: number) {
-  const onionRouter = express();
-  onionRouter.use(express.json());
-  onionRouter.use(bodyParser.json());
+export async function simpleOnionRouter(routerId) {
+  const routerApp = express();
 
-  // TODO implement the status route
-  // onionRouter.get("/status", (req, res) => {});
+  const keys = await generateRsaKeyPair();
+  const pubKey = await exportPubKey(keys.publicKey);
+  const secKey = await exportPrvKey(keys.privateKey);
 
-  const server = onionRouter.listen(BASE_ONION_ROUTER_PORT + nodeId, () => {
-    console.log(
-      `Onion router ${nodeId} is listening on port ${
-        BASE_ONION_ROUTER_PORT + nodeId
-      }`
-    );
+  routerApp.use(express.json());
+  routerApp.use(bodyParser.json());
+
+  let encryptedMsgCache = null;
+  let decryptedMsgCache = null;
+  let msgDestinationCache = null;
+
+  // Status check endpoint
+  routerApp.get("/status", (request, response) => {
+    response.status(200).send("live");
   });
 
-  return server;
+  routerApp.get("/getLastReceivedEncryptedMessage", (req, res) => {
+    res.json({encryptedMessage: encryptedMsgCache});
+  });
+
+  routerApp.get("/getLastReceivedDecryptedMessage", (req, res) => {
+    res.json({decryptedMessage: decryptedMsgCache});
+  });
+
+  routerApp.get("/getLastMessageDestination", (req, res) => {
+    res.json({destination: msgDestinationCache});
+  });
+
+  routerApp.get("/getPrivateKey", (req, res) => {
+    res.json({ secretKey: secKey });
+  });
+
+  // Node registration
+  await fetch(`http://localhost:${REGISTRY_PORT}/registerNode`, {
+    method: "POST",
+    body: JSON.stringify({ routerId, publicKey: pubKey, privateKey: secKey }),
+    headers: { "Content-Type": "application/json" },
+  });
+
+  return routerApp.listen(BASE_ONION_ROUTER_PORT + routerId, () => {
+    console.log(`Router ${routerId} active on port ${BASE_ONION_ROUTER_PORT + routerId}`);
+  });
 }

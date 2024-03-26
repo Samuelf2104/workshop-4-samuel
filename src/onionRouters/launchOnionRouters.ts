@@ -1,15 +1,17 @@
 import { simpleOnionRouter } from "./simpleOnionRouter";
+import { REGISTRY_PORT } from "../config";
 
-export async function launchOnionRouters(n: number) {
+export async function launchOnionRouters(n: number)
+{
+
   const promises = [];
 
-  // launch a n onion routers
-  for (let index = 0; index < n; index++) {
-    const newPromise = simpleOnionRouter(index);
-    promises.push(newPromise);
+  // launch an n onion routers
+  for (let index = 0; index < n; index++)
+  {
+    const newRouter = simpleOnionRouter(index);
+    promises.push(newRouter);
   }
 
-  const servers = await Promise.all(promises);
-
-  return servers;
+  return await Promise.all(promises);
 }
